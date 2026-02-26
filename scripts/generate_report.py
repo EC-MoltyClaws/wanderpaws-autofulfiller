@@ -24,7 +24,7 @@ import pytz
 load_dotenv()
 import requests
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Border, Font, Side
 from openpyxl.utils import get_column_letter
 
 # ─── Config ───────────────────────────────────────────────────────────────────
@@ -50,11 +50,19 @@ def load_sku_map() -> dict[str, dict]:
     Format (one entry per line, comments with #):
         generic-sipcup=Sip Cup
         main-harness=Harness
+        main-harness=<qty>x Harness-<arg1>/<arg2>, <qty>x Leash-<arg1>
         twinned-leash=Leash:1    <- :1 = inherit first 1 variant from main
+
+    Template format (main-* only):
+        Values containing <qty> or <arg1>, <arg2>, ... are treated as templates.
+        <qty>  → the line item quantity
+        <argN> → the Nth variant segment from the SKU (1-based)
 
     nonfulfil SKUs need no entry — they are skipped by prefix automatically.
 
-    Returns dict of { key: { "name": str, "inherit": int } }
+    Returns dict of:
+        { key: { "template": str } }                     # template entry
+        { key: { "name": str, "inherit": int } }         # plain / twinned entry
     """
     sku_map: dict[str, dict] = {}
     if not SKU_MAP_FILE.exists():
@@ -69,7 +77,10 @@ def load_sku_map() -> dict[str, dict]:
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip()
-        if ":" in value:
+        if "<" in value:
+            # Template entry — contains <qty> / <arg1> / <arg2> ... placeholders
+            sku_map[key] = {"template": value}
+        elif ":" in value:
             name, _, inherit_str = value.partition(":")
             sku_map[key] = {"name": name.strip(), "inherit": int(inherit_str.strip())}
         else:
@@ -170,11 +181,14 @@ def build_lineitem_name(order: dict, sku_map: dict[str, dict]) -> str:
     SKU classes:
       nonfulfil-* → skipped entirely
       generic-*   → name from sku_map[full_sku], no variants
-      main-{p}-{v1}-{v2}-...  → name from sku_map["main-{p}"], variants from SKU terms
+      main-{p}-{v1}-{v2}-...  → if sku_map["main-{p}"] has a template, expands
+                                  <qty>/<arg1>/<arg2>/... with actual values;
+                                  otherwise uses plain name + variants.
       twinned-*   → name + :N from sku_map[full_sku], inherits first N variants from
                     the main product found in the same order
 
-    Example output: "2x Harness/Black/XS, 1x Leash/Black"
+    Example (template):  "1x Harness-Black/XS, 1x Leash-Black"
+    Example (plain):     "2x Harness/Black/XS, 1x Leash/Black"
     """
     line_items = order.get("lineItems", [])
 
@@ -207,12 +221,19 @@ def build_lineitem_name(order: dict, sku_map: dict[str, dict]) -> str:
         elif cls == "main":
             product_key = f"main-{parts[1]}" if len(parts) > 1 else sku
             entry = sku_map.get(product_key, {})
-            name = entry.get("name") or (parts[1].capitalize() if len(parts) > 1 else sku)
-            variants = [_fmt_variant(v) for v in parts[2:]]
-            if variants:
-                result.append(f"{qty}x {name}/{'/'.join(variants)}")
+            if "template" in entry:
+                # Expand template: replace <qty> and <arg1>, <arg2>, ...
+                expanded = entry["template"].replace("<qty>", str(qty))
+                for i, seg in enumerate(parts[2:], start=1):
+                    expanded = expanded.replace(f"<arg{i}>", _fmt_variant(seg))
+                result.append(expanded)
             else:
-                result.append(f"{qty}x {name}")
+                name = entry.get("name") or (parts[1].capitalize() if len(parts) > 1 else sku)
+                variants = [_fmt_variant(v) for v in parts[2:]]
+                if variants:
+                    result.append(f"{qty}x {name}/{'/'.join(variants)}")
+                else:
+                    result.append(f"{qty}x {name}")
 
         elif cls == "twinned":
             entry = sku_map.get(sku, {})
@@ -271,9 +292,7 @@ def build_rows(orders: list, sku_map: dict[str, dict]) -> list[list]:
 
 # ─── Excel styles ─────────────────────────────────────────────────────────────
 
-_HEADER_FILL = PatternFill("solid", fgColor="2D6A4F")
-_HEADER_FONT = Font(bold=True, color="FFFFFF", name="Calibri", size=11)
-_ALT_FILL = PatternFill("solid", fgColor="D8F3DC")
+_HEADER_FONT = Font(bold=True, name="Calibri", size=11)
 _NORMAL_FONT = Font(name="Calibri", size=10)
 _THIN = Side(style="thin", color="BBBBBB")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
@@ -297,18 +316,15 @@ def _build_orders_sheet(ws, rows: list[list]) -> None:
     for col_idx, col_name in enumerate(COLUMNS, start=1):
         cell = ws.cell(row=1, column=col_idx, value=col_name)
         cell.font = _HEADER_FONT
-        cell.fill = _HEADER_FILL
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = _BORDER
     ws.row_dimensions[1].height = 20
 
     # Data rows
     for row_idx, row_data in enumerate(rows, start=2):
-        fill = _ALT_FILL if row_idx % 2 == 0 else PatternFill()
         for col_idx, val in enumerate(row_data, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.font = _NORMAL_FONT
-            cell.fill = fill
             cell.border = _BORDER
 
     _auto_width(ws)
@@ -365,13 +381,11 @@ def main() -> None:
         if args.last:
             orders = fetch_last_order()
             label = "Last Order"
-            filename = "wanderpaws_last_order.xlsx"
         else:
             start, end = get_report_window()
             print(f"Report window: {start.isoformat()} → {end.isoformat()}")
             orders = filter_orders(fetch_orders(start, end), start, end)
             label = f"Daily Report — {end.strftime('%d %b %Y')}"
-            filename = f"wanderpaws_orders_{end.strftime('%Y-%m-%d')}.xlsx"
     except Exception as e:
         send_telegram_message(f"*WanderPaws Report Error*\nFailed to fetch orders:\n`{e}`")
         sys.exit(1)
@@ -380,6 +394,11 @@ def main() -> None:
         send_telegram_message(f"*WanderPaws {label}*\nNo orders found.")
         print("No orders — notified via Telegram.")
         return
+
+    tz = pytz.timezone(TIMEZONE)
+    created_at = datetime.now(tz).strftime("%Y-%m-%d")
+    last_order_name = (orders[-1].get("name") or "").lstrip("#")
+    filename = f"Orders {created_at} #{last_order_name}.xlsx"
 
     rows = build_rows(orders, sku_map)
     buf = generate_excel(rows)
