@@ -17,7 +17,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install dependencies
         run: uv pip install -r requirements.txt
@@ -25,6 +25,7 @@ jobs:
       - name: Generate and send report
         env:
           MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          MAKE_LAST_ORDER_WEBHOOK_URL: ${{ secrets.MAKE_LAST_ORDER_WEBHOOK_URL }}
           MAKE_WEBHOOK_API_KEY: ${{ secrets.MAKE_WEBHOOK_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

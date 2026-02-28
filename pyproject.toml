@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "dotenv>=0.9.9",
+    "python-dotenv>=1.0.0",
     "openpyxl>=3.1.5",
     "pytz>=2025.2",
     "requests>=2.32.5",
