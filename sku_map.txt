@@ -19,6 +19,7 @@
 
 # Generic products (full SKU = key, direct name mapping)
 generic-sipcup=Sip Cup
+generic-retractableleash-black=Retractable Leash
 generic-tracker-apple=Tracker-Apple
 generic-tracker-android=Tracker-Android
 
