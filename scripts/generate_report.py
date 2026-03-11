@@ -367,6 +367,21 @@ def send_telegram_message(text: str) -> None:
     )
 
 
+# ─── SKU validation ───────────────────────────────────────────────────────────
+
+
+def find_missing_skus(orders: list) -> list[tuple[str, str]]:
+    """Return (order_name, item_title) for every line item that has no SKU."""
+    missing = []
+    for order in orders:
+        order_name = order.get("name", "?")
+        for item in order.get("lineItems", []):
+            sku = (item.get("sku") or "").strip()
+            if not sku:
+                missing.append((order_name, item.get("title", "Unknown product")))
+    return missing
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -399,6 +414,13 @@ def main() -> None:
 
         # Sort ascending by order number so the sheet reads oldest → newest
         orders.sort(key=lambda o: int((o.get("name") or "#0").lstrip("#") or 0))
+
+        missing_skus = find_missing_skus(orders)
+        if missing_skus:
+            lines = "\n".join(f"• {name}: _{title}_" for name, title in missing_skus)
+            send_telegram_message(f"*WanderPaws SKU Missing*\nThe following items have no SKU and the report was not generated:\n{lines}")
+            print("Aborted — missing SKUs detected.")
+            return
 
         first_order_name = (orders[0].get("name") or "").lstrip("#")
         last_order_name = (orders[-1].get("name") or "").lstrip("#")
