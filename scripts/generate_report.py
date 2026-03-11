@@ -378,7 +378,8 @@ def find_missing_skus(orders: list) -> list[tuple[str, str]]:
         for item in order.get("lineItems", []):
             sku = (item.get("sku") or "").strip()
             if not sku:
-                missing.append((order_name, item.get("title", "Unknown product")))
+                product_id = item.get("product", {}).get("legacyResourceId", "Unknown")
+                missing.append((order_name, product_id))
     return missing
 
 
