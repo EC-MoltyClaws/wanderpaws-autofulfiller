@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .venv/
 CLAUDE.md
+.claude/
+uv.lock

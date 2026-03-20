@@ -18,14 +18,15 @@
 # ─────────────────────────────────────────────────────────────
 
 # Generic products (full SKU = key, direct name mapping)
-generic-sipcup=Sip Cup
-generic-retractableleash-black=Retractable Leash
+
+generic-retractableleash=Retractable Leash
 generic-tracker-apple=Tracker-Apple
 generic-tracker-android=Tracker-Android
 
 # Main products (key is main-{product}, variants come from the SKU itself)
 # Template: <qty> and <arg1>/<arg2>/... are substituted from the SKU and quantity.
 main-harness=<qty>x Harness-<arg1>/<arg2>, <qty>x Leash-<arg1>
+main-sipcup=<qty>x Food and Water Dispensor-<arg1>
 
 # Twinned products (Name:N where N = how many variants to copy from main)
 # Use this for products that are truly separate SKUs but inherit variants from main.

@@ -27,6 +27,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, Side
 from openpyxl.utils import get_column_letter
 
+sys.path.insert(0, str(Path(__file__).parent))
+from sku_config import SKU_MAP
+
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 WEBHOOK_URL = os.environ["MAKE_WEBHOOK_URL"]
@@ -36,62 +39,25 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 TIMEZONE = os.environ.get("REPORT_TIMEZONE", "Asia/Singapore")
 
-# Resolved relative to this script's directory
-_SCRIPT_DIR = Path(__file__).parent
-SKU_MAP_FILE = Path(os.environ.get("SKU_MAP_FILE", _SCRIPT_DIR.parent / "sku_map.txt"))
 
-# ─── SKU map ──────────────────────────────────────────────────────────────────
+# ─── SKU expansion ────────────────────────────────────────────────────────────
 
 
-def load_sku_map() -> dict[str, dict]:
+def expand_sku(sku: str, qty: int) -> list[str]:
     """
-    Load SKU → display config from a text file.
+    Phase 1: Expand a pseudo SKU into display strings for each actual product.
 
-    Format (one entry per line, comments with #):
-        generic-sipcup=Sip Cup
-        main-harness=Harness
-        main-harness=<qty>x Harness-<arg1>/<arg2>, <qty>x Leash-<arg1>
-        twinned-leash=Leash:1    <- :1 = inherit first 1 variant from main
+    Looks up the SKU directly in SKU_MAP.
+      - Known SKU with products → ["Nx Product-Variant", ...]
+      - Known SKU mapped to []  → [] (skip silently)
+      - Unknown SKU             → raises ValueError
 
-    Template format (main-* only):
-        Values containing <qty> or <arg1>, <arg2>, ... are treated as templates.
-        <qty>  → the line item quantity
-        <argN> → the Nth variant segment from the SKU (1-based)
-
-    nonfulfil SKUs need no entry — they are skipped by prefix automatically.
-
-    Returns dict of:
-        { key: { "template": str } }                     # template entry
-        { key: { "name": str, "inherit": int } }         # plain / twinned entry
+    Raises:
+        ValueError: if the SKU is not present in SKU_MAP.
     """
-    sku_map: dict[str, dict] = {}
-    if not SKU_MAP_FILE.exists():
-        print(f"WARNING: SKU map file not found at {SKU_MAP_FILE}. SKUs will be used as-is.")
-        return sku_map
-    for line in SKU_MAP_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip()
-        if "<" in value:
-            # Template entry — contains <qty> / <arg1> / <arg2> ... placeholders
-            sku_map[key] = {"template": value}
-        elif ":" in value:
-            name, _, inherit_str = value.partition(":")
-            sku_map[key] = {"name": name.strip(), "inherit": int(inherit_str.strip())}
-        else:
-            sku_map[key] = {"name": value, "inherit": 0}
-    print(f"Loaded {len(sku_map)} SKU mappings.")
-    return sku_map
-
-
-def _fmt_variant(v: str) -> str:
-    """Short codes (sizes) → uppercase; longer terms (colours) → capitalised."""
-    return v.upper() if len(v) <= 3 else v.capitalize()
+    if sku not in SKU_MAP:
+        raise ValueError(f"Unknown SKU: {sku}")
+    return [f"{qty}x {name}" for name in SKU_MAP[sku]]
 
 
 # ─── Time window ──────────────────────────────────────────────────────────────
@@ -174,78 +140,52 @@ def filter_orders(orders: list, start: datetime, end: datetime) -> list:
 # ─── Lineitem name ────────────────────────────────────────────────────────────
 
 
-def build_lineitem_name(order: dict, sku_map: dict[str, dict]) -> str:
+def build_lineitem_name(order: dict) -> str:
     """
-    Build a comma-separated string of all fulfilable items in the order.
+    Phase 2: Collate all expanded SKUs across the order's line items.
 
-    SKU classes:
-      nonfulfil-* → skipped entirely
-      generic-*   → name from sku_map[full_sku], no variants
-      main-{p}-{v1}-{v2}-...  → if sku_map["main-{p}"] has a template, expands
-                                  <qty>/<arg1>/<arg2>/... with actual values;
-                                  otherwise uses plain name + variants.
-      twinned-*   → name + :N from sku_map[full_sku], inherits first N variants from
-                    the main product found in the same order
+    Ordering:
+      1. Bundle items (SKUs that expand to 2+ products), grouped by slot:
+         slot 0 across all line items, then slot 1 (collated), etc.
+      2. Standalone items (SKUs that expand to 1 product), in order.
 
-    Example (template):  "1x Harness-Black/XS, 1x Leash-Black"
-    Example (plain):     "2x Harness/Black/XS, 1x Leash/Black"
+    Quantities are summed for identical product names.
+
+    Example: "2x Harness-Black/XS, 2x Leash-Black, 1x Retractable Leash"
+
+    Raises:
+        ValueError: if any SKU in the order is not present in SKU_MAP.
     """
-    line_items = order.get("lineItems", [])
+    # slot_items[i]: ordered dict of name → total qty for bundle slot i
+    slot_items: list[dict[str, int]] = []
+    standalone_items: dict[str, int] = {}
 
-    # Pass 1 — extract variants of the first main product in the order
-    main_variants: list[str] = []
-    for item in line_items:
-        sku = (item.get("sku") or "").strip()
-        parts = sku.split("-")
-        if parts[0] == "main" and len(parts) >= 3:
-            # main-{product}-{v1}-{v2}-...  → variants start at index 2
-            main_variants = [_fmt_variant(v) for v in parts[2:]]
-            break
-
-    # Pass 2 — build display string for each fulfilable item
-    result = []
-    for item in line_items:
+    for item in order.get("lineItems", []):
         sku = (item.get("sku") or "").strip()
         qty = item.get("quantity", 1)
-        parts = sku.split("-")
-        cls = parts[0]
 
-        if cls == "nonfulfil":
-            continue
+        if sku not in SKU_MAP:
+            raise ValueError(f"Unknown SKU: {sku}")
 
-        elif cls == "generic":
-            entry = sku_map.get(sku, {})
-            name = entry.get("name") or item.get("title", sku)
-            result.append(f"{qty}x {name}")
+        names = SKU_MAP[sku]
 
-        elif cls == "main":
-            product_key = f"main-{parts[1]}" if len(parts) > 1 else sku
-            entry = sku_map.get(product_key, {})
-            if "template" in entry:
-                # Expand template: replace <qty> and <arg1>, <arg2>, ...
-                expanded = entry["template"].replace("<qty>", str(qty))
-                for i, seg in enumerate(parts[2:], start=1):
-                    expanded = expanded.replace(f"<arg{i}>", _fmt_variant(seg))
-                result.append(expanded)
-            else:
-                name = entry.get("name") or (parts[1].capitalize() if len(parts) > 1 else sku)
-                variants = [_fmt_variant(v) for v in parts[2:]]
-                if variants:
-                    result.append(f"{qty}x {name}/{'/'.join(variants)}")
-                else:
-                    result.append(f"{qty}x {name}")
+        if not names:
+            continue  # non-fulfilled item, skip
 
-        elif cls == "twinned":
-            entry = sku_map.get(sku, {})
-            name = entry.get("name") or item.get("title", sku)
-            inherit = entry.get("inherit", 0)
-            inherited = main_variants[:inherit]
-            if inherited:
-                result.append(f"{qty}x {name}/{'/'.join(inherited)}")
-            else:
-                result.append(f"{qty}x {name}")
+        if len(names) == 1:
+            name = names[0]
+            standalone_items[name] = standalone_items.get(name, 0) + qty
+        else:
+            while len(slot_items) < len(names):
+                slot_items.append({})
+            for i, name in enumerate(names):
+                slot_items[i][name] = slot_items[i].get(name, 0) + qty
 
-    return ", ".join(result)
+    parts = []
+    for slot in slot_items:
+        parts.extend(f"{total}x {name}" for name, total in slot.items())
+    parts.extend(f"{total}x {name}" for name, total in standalone_items.items())
+    return ", ".join(parts)
 
 
 # ─── Row building ─────────────────────────────────────────────────────────────
@@ -267,7 +207,7 @@ COLUMNS = [
 ]
 
 
-def build_rows(orders: list, sku_map: dict[str, dict]) -> list[list]:
+def build_rows(orders: list) -> list[list]:
     """One row per order."""
     rows = []
     for order in orders:
@@ -275,7 +215,7 @@ def build_rows(orders: list, sku_map: dict[str, dict]) -> list[list]:
         rows.append([
             order.get("name"),
             order.get("email"),
-            build_lineitem_name(order, sku_map),
+            build_lineitem_name(order),
             addr.get("name"),
             addr.get("address1"),
             addr.get("address1"),
@@ -391,8 +331,6 @@ def main() -> None:
     parser.add_argument("--last", action="store_true", help="Fetch only the last order via the last-order webhook")
     args = parser.parse_args()
 
-    sku_map = load_sku_map()
-
     try:
         if args.last:
             orders = fetch_last_order()
@@ -430,7 +368,7 @@ def main() -> None:
         else:
             filename = f"Orders {created_at} #{first_order_name}-#{last_order_name}.xlsx"
 
-        rows = build_rows(orders, sku_map)
+        rows = build_rows(orders)
         buf = generate_excel(rows)
 
         send_telegram_document(buf, filename, f"*WanderPaws {label}*\n`{len(orders)}` order(s)")
