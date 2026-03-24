@@ -75,15 +75,19 @@ def get_report_window() -> tuple[datetime, datetime]:
 # ─── Data fetching ────────────────────────────────────────────────────────────
 
 
-def fetch_orders(start: datetime, end: datetime) -> list:
+def fetch_orders(start: datetime, end: datetime, reship_orders: list = None) -> list:
     """
-    POST to Make.com webhook with the date window.
+    POST to Make.com webhook with the date window and optional reship orders.
     Make.com should use these params to filter Shopify orders at source.
     Returns list of Shopify order objects.
     """
+    if reship_orders is None:
+        reship_orders = []
+
     payload = {
         "start": start.isoformat(),
         "end": end.isoformat(),
+        "reship_orders": reship_orders
     }
     resp = requests.post(
         WEBHOOK_URL,
@@ -337,8 +341,14 @@ def main() -> None:
             label = "Last Order"
         else:
             start, end = get_report_window()
+            reship_str = os.environ.get("RESHIP_ORDERS", "").strip()
+            reships = [r.strip() for r in reship_str.split(",")] if reship_str else []
+            
             print(f"Report window: {start.isoformat()} -> {end.isoformat()}")
-            orders = filter_orders(fetch_orders(start, end), start, end)
+            if reships:
+                print(f"Injecting Reship Orders: {reships}")
+                
+            orders = filter_orders(fetch_orders(start, end, reship_orders=reships), start, end)
             label = f"Daily Report — {end.strftime('%d %b %Y')}"
 
         tz = pytz.timezone(TIMEZONE)

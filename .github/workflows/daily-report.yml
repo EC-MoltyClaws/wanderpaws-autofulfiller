@@ -7,6 +7,10 @@ on:
   workflow_dispatch:
     # Allows manual triggering from the GitHub Actions UI
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   generate-report:
     runs-on: ubuntu-latest
@@ -27,6 +31,16 @@ jobs:
         pip install requests openpyxl pytz python-dotenv
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+    - name: Fetch Reship Orders
+      id: fetch_reships
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Use gh CLI to grab all open issue titles labeled "reship"
+        RESHIP_LIST=$(gh issue list --label "reship" --state "open" --json title --jq '.[].title' | paste -sd "," -)
+        echo "Found reship orders: $RESHIP_LIST"
+        echo "RESHIP_ORDERS=$RESHIP_LIST" >> $GITHUB_ENV
+
     - name: Run Report Generator Script
       id: run_script
       env:
@@ -39,6 +53,21 @@ jobs:
       run: |
         # Redirect stderr to a file so we can capture exactly why it failed
         python scripts/generate_report.py 2> error_log.txt || (cat error_log.txt; exit 1)
+
+    - name: Close Reship Issues
+      if: success()
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Mark reship queue as done if the Python script succeeded
+        if [ -n "${{ env.RESHIP_ORDERS }}" ]; then
+          for id in $(gh issue list --label "reship" --state "open" --json number --jq '.[].number'); do
+            echo "Closing issue #$id"
+            gh issue close $id --reason "completed" -c "Order was successfully added to today's fulfillment report."
+          done
+        else
+          echo "No reships to close."
+        fi
 
     - name: Create Issue on Failure
       if: failure()
