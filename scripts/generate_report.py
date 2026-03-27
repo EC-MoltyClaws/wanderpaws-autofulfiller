@@ -410,6 +410,8 @@ def main() -> None:
             return
 
         # Sort ascending by order number so the sheet reads oldest → newest
+        filename_parts = [f"Orders {created_at}"]
+
         if orders:
             orders.sort(key=lambda o: int((o.get("name") or "#0").lstrip("#") or 0))
 
@@ -423,11 +425,25 @@ def main() -> None:
             first_order_name = (orders[0].get("name") or "").lstrip("#")
             last_order_name = (orders[-1].get("name") or "").lstrip("#")
             if len(orders) == 1:
-                filename = f"Orders {created_at} #{first_order_name}.xlsx"
+                filename_parts.append(f"#{first_order_name}")
             else:
-                filename = f"Orders {created_at} #{first_order_name}-#{last_order_name}.xlsx"
-        else:
-            filename = f"Orders {created_at} #ReshipsOnly.xlsx"
+                filename_parts.append(f"#{first_order_name}-#{last_order_name}")
+        
+        if reship_rows:
+            reship_nums = sorted([
+                int(''.join(filter(str.isdigit, str(r[0])))) 
+                for r in reship_rows 
+                if any(c.isdigit() for c in str(r[0]))
+            ])
+            if reship_nums:
+                if len(reship_nums) == 1:
+                    filename_parts.append(f"Reship#{reship_nums[0]}")
+                else:
+                    filename_parts.append(f"Reship#{reship_nums[0]}-#{reship_nums[-1]}")
+            else:
+                filename_parts.append("Reship")
+
+        filename = " ".join(filename_parts) + ".xlsx"
 
         rows = build_rows(orders)
         
