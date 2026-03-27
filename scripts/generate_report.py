@@ -186,8 +186,9 @@ def filter_orders(orders: list, start: datetime, end: datetime) -> list:
     print(f"Window : {start.isoformat()} -> {end.isoformat()}")
     filtered = []
     for order in orders:
-        if True:
-            filtered.append(order)
+        if not order.get("id"):
+            continue
+        filtered.append(order)
     print(f"Filtered to {len(filtered)} orders in window.")
     return filtered
 
