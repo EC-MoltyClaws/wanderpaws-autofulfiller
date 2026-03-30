@@ -1,9 +1,6 @@
 name: Daily Shopify Orders Report
 
 on:
-  schedule:
-    # Runs at 10:15 SGT (02:15 UTC) every day
-    - cron: '15 2 * * *'
   workflow_dispatch:
     # Allows manual triggering from the GitHub Actions UI
 
