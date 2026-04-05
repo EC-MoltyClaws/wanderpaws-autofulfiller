@@ -46,4 +46,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           REPORT_TIMEZONE: "Asia/Singapore"
         run: |
-          pytest tests/test_sku.py
+          PYTHONPATH=. pytest tests/test_sku.py
