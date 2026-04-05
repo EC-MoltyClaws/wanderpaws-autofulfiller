@@ -93,6 +93,10 @@ def test_freepriorityshipping_skipped():
     assert expand_sku("freepriorityshipping", 1) == []
 
 
+def test_freewarranty_skipped():
+    assert expand_sku("freewarranty", 1) == []
+
+
 def test_guide30_skipped():
     assert expand_sku("guide30", 1) == []
 

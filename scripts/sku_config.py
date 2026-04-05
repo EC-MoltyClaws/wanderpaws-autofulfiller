@@ -49,7 +49,8 @@ SKU_MAP: dict[str, list[str]] = {
     # ── Skip (not fulfilled) ─────────────────────────────────────────────────
     "freeleashupgrade":    [],
     "freepriorityshipping": [],
+    "freewarranty":        [],
     "guide30":             [],
-    "guide7":    [],
+    "guide7":              [],
     "nonfulfil-shipping":  [],
 }
