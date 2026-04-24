@@ -53,4 +53,11 @@ SKU_MAP: dict[str, list[str]] = {
     "guide30":             [],
     "guide7":              [],
     "nonfulfil-shipping":  [],
+    "defaultleash-black":  [],
+    "defaultleash-blue":   [],
+    "defaultleash-pink":   [],
+    "defaultleash-orange": [],
+    "defaultleash-yellow": [],
+    "defaultleash-purple": [],
+    "defaultleash-red":    [],
 }
