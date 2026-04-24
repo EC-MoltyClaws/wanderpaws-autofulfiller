@@ -32,3 +32,12 @@ main-sipcup=<qty>x Food and Water Dispensor-<arg1>
 # Use this for products that are truly separate SKUs but inherit variants from main.
 # e.g. twinned-leash=Leash:1 copies only the first variant (colour) from main
 twinned-leash=Leash:1
+
+# Skip-only SKUs (map to empty)
+defaultleash-black=
+defaultleash-blue=
+defaultleash-pink=
+defaultleash-orange=
+defaultleash-yellow=
+defaultleash-purple=
+defaultleash-red=
