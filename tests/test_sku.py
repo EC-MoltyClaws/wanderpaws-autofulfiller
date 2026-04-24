@@ -109,6 +109,34 @@ def test_nonfulfil_shipping_skipped():
     assert expand_sku("nonfulfil-shipping", 1) == []
 
 
+def test_defaultleash_black_skipped():
+    assert expand_sku("defaultleash-black", 1) == []
+
+
+def test_defaultleash_blue_skipped():
+    assert expand_sku("defaultleash-blue", 1) == []
+
+
+def test_defaultleash_pink_skipped():
+    assert expand_sku("defaultleash-pink", 1) == []
+
+
+def test_defaultleash_orange_skipped():
+    assert expand_sku("defaultleash-orange", 1) == []
+
+
+def test_defaultleash_yellow_skipped():
+    assert expand_sku("defaultleash-yellow", 1) == []
+
+
+def test_defaultleash_purple_skipped():
+    assert expand_sku("defaultleash-purple", 1) == []
+
+
+def test_defaultleash_red_skipped():
+    assert expand_sku("defaultleash-red", 1) == []
+
+
 # ─── expand_sku: unknown SKU raises ValueError ───────────────────────────────
 
 
