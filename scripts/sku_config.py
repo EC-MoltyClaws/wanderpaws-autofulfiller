@@ -38,6 +38,7 @@ SKU_MAP: dict[str, list[str]] = {
     # ── Sip cup ──────────────────────────────────────────────────────────────
     "sipcup-blue":       ["Food and Water Dispensor-Blue"],
     "sipcup-red":        ["Food and Water Dispensor-Red"],
+    "sipcup-pink":       ["Food and Water Dispensor-Pink"],
 
     # ── Retractable leash ────────────────────────────────────────────────────
     "retractableleash":  ["Retractable Leash"],

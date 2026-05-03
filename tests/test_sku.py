@@ -60,6 +60,10 @@ def test_sipcup_red():
     assert expand_sku("sipcup-red", 1) == ["1x Food and Water Dispensor-Red"]
 
 
+def test_sipcup_pink():
+    assert expand_sku("sipcup-pink", 1) == ["1x Food and Water Dispensor-Pink"]
+
+
 def test_sipcup_qty_applied():
     assert expand_sku("sipcup-blue", 3) == ["3x Food and Water Dispensor-Blue"]
 
