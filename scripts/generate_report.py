@@ -385,10 +385,16 @@ def find_missing_skus(orders: list) -> list[tuple[str, str]]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--last", action="store_true", help="Fetch only the last order via the last-order webhook")
+    parser.add_argument("--reships-only", action="store_true", help="Generate an Excel from open reship issues only")
     args = parser.parse_args()
 
     try:
-        if args.last:
+        if args.reships_only:
+            orders = []
+            tz = pytz.timezone(TIMEZONE)
+            now = datetime.now(tz)
+            label = f"Reships Only — {now.strftime('%d %b %Y')}"
+        elif args.last:
             orders = fetch_last_order()
             label = "Last Order"
         else:
