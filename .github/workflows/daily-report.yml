@@ -2,7 +2,12 @@ name: Daily Shopify Orders Report
 
 on:
   workflow_dispatch:
-    # Allows manual triggering from the GitHub Actions UI
+    inputs:
+      reships_only:
+        description: "Generate Excel from open reship issues only"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -46,9 +51,14 @@ jobs:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         REPORT_TIMEZONE: "Asia/Singapore"
+        RESHIPS_ONLY: ${{ github.event.inputs.reships_only }}
       run: |
+        ARGS=""
+        if [ "$RESHIPS_ONLY" = "true" ]; then
+          ARGS="$ARGS --reships-only"
+        fi
         # Redirect stderr to a file so we can capture exactly why it failed
-        python scripts/generate_report.py 2> error_log.txt || (cat error_log.txt; exit 1)
+        python scripts/generate_report.py $ARGS 2> error_log.txt || (cat error_log.txt; exit 1)
 
     - name: Close Reship Issues
       if: success()
