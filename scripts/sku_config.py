@@ -41,7 +41,8 @@ SKU_MAP: dict[str, list[str]] = {
     "sipcup-pink":       ["Food and Water Dispensor-Pink"],
 
     # ── Retractable leash ────────────────────────────────────────────────────
-    "retractableleash":  ["Retractable Leash"],
+    "retractableleash-10ft":  ["Retractable Leash-10ft"],
+    "retractableleash-16ft":  ["Retractable Leash-16ft"],
 
     # ── Trackers ─────────────────────────────────────────────────────────────
     "generic-tracker-apple":   ["Tracker-Apple"],

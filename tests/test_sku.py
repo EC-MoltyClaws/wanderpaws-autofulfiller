@@ -71,8 +71,12 @@ def test_sipcup_qty_applied():
 # ─── expand_sku: retractable leash ───────────────────────────────────────────
 
 
-def test_retractable_leash():
-    assert expand_sku("retractableleash", 1) == ["1x Retractable Leash"]
+def test_retractable_leash_10ft():
+    assert expand_sku("retractableleash-10ft", 1) == ["1x Retractable Leash-10ft"]
+
+
+def test_retractable_leash_16ft():
+    assert expand_sku("retractableleash-16ft", 1) == ["1x Retractable Leash-16ft"]
 
 
 # ─── expand_sku: trackers ─────────────────────────────────────────────────────
@@ -175,22 +179,36 @@ def test_single_sipcup_order():
 def test_harness_and_retractable_leash():
     assert build_lineitem_name(order([
         ("harness-black-xs", 1),
-        ("retractableleash", 1),
-    ])) == "1x Harness-Black/XS, 1x Leash-Black, 1x Retractable Leash"
+        ("retractableleash-10ft", 1),
+    ])) == "1x Harness-Black/XS, 1x Leash-Black, 1x Retractable Leash-10ft"
 
 
 def test_multiple_quantities():
     assert build_lineitem_name(order([
         ("harness-black-xs", 2),
-        ("retractableleash", 1),
-    ])) == "2x Harness-Black/XS, 2x Leash-Black, 1x Retractable Leash"
+        ("retractableleash-16ft", 1),
+    ])) == "2x Harness-Black/XS, 2x Leash-Black, 1x Retractable Leash-16ft"
 
 def test_multiple_quantities_collation():
     assert build_lineitem_name(order([
         ("harness-black-xs", 1),
         ("harness-black-m", 1),
-        ("retractableleash", 1),
-    ])) == "1x Harness-Black/XS, 1x Harness-Black/M, 2x Leash-Black, 1x Retractable Leash"
+        ("retractableleash-10ft", 1),
+    ])) == "1x Harness-Black/XS, 1x Harness-Black/M, 2x Leash-Black, 1x Retractable Leash-10ft"
+
+
+def test_harness_and_retractable_leash_10ft():
+    assert build_lineitem_name(order([
+        ("harness-black-xs", 1),
+        ("retractableleash-10ft", 1),
+    ])) == "1x Harness-Black/XS, 1x Leash-Black, 1x Retractable Leash-10ft"
+
+
+def test_harness_and_retractable_leash_16ft():
+    assert build_lineitem_name(order([
+        ("harness-black-xs", 1),
+        ("retractableleash-16ft", 1),
+    ])) == "1x Harness-Black/XS, 1x Leash-Black, 1x Retractable Leash-16ft"
 
 
 # ─── build_lineitem_name: skip SKUs are excluded ─────────────────────────────
