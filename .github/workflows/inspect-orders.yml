@@ -1,0 +1,86 @@
+name: Inspect Orders
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "SGT date in YYYY-MM-DD. Defaults to today if omitted."
+        required: false
+        type: string
+      limit:
+        description: "Maximum number of orders to return"
+        required: false
+        default: "10"
+        type: string
+      order_numbers:
+        description: "Optional comma-separated order numbers, e.g. 1096,1097"
+        required: false
+        type: string
+      last:
+        description: "Use last-order webhook instead of daily window"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-orders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run order inspection
+        env:
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          MAKE_LAST_ORDER_WEBHOOK_URL: ${{ secrets.MAKE_LAST_ORDER_WEBHOOK_URL }}
+          MAKE_WEBHOOK_API_KEY: ${{ secrets.MAKE_WEBHOOK_API_KEY }}
+          REPORT_TIMEZONE: "Asia/Singapore"
+          INPUT_DATE: ${{ github.event.inputs.date }}
+          INPUT_LIMIT: ${{ github.event.inputs.limit }}
+          INPUT_ORDER_NUMBERS: ${{ github.event.inputs.order_numbers }}
+          INPUT_LAST: ${{ github.event.inputs.last }}
+        run: |
+          mkdir -p out
+          ARGS="--pretty --limit ${INPUT_LIMIT:-10}"
+          if [ -n "$INPUT_DATE" ]; then
+            ARGS="$ARGS --date $INPUT_DATE"
+          fi
+          if [ -n "$INPUT_ORDER_NUMBERS" ]; then
+            ARGS="$ARGS --order-numbers $INPUT_ORDER_NUMBERS"
+          fi
+          if [ "$INPUT_LAST" = "true" ]; then
+            ARGS="$ARGS --last"
+          fi
+
+          python scripts/inspect_orders.py $ARGS > out/orders.json
+
+          echo "Saved inspection output to out/orders.json"
+          python - <<'PY'
+          import json
+          data = json.load(open('out/orders.json'))
+          print(f"Returned {data['returned_count']} order(s)")
+          for order in data['orders']:
+              print(f"- {order['order_name']}: {len(order['line_items'])} line item(s)")
+          PY
+
+      - name: Upload JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspected-orders
+          path: out/orders.json
+          if-no-files-found: error
