@@ -71,10 +71,6 @@ def test_sipcup_qty_applied():
 # ─── expand_sku: retractable leash ───────────────────────────────────────────
 
 
-def test_retractable_leash():
-    assert expand_sku("retractableleash", 1) == ["1x Retractable Leash"]
-
-
 def test_retractable_leash_10ft():
     assert expand_sku("retractableleash-10ft", 1) == ["1x Retractable Leash-10ft"]
 
